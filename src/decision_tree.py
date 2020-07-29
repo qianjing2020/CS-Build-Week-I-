@@ -1,402 +1,90 @@
+from utilities import Leaf, DecisionNode, split, find_best_split, class_counts
 
-# Toy dataset.
-# Format: each row is an example.
-# The last column is the label.
-# The first two columns are features.
-# Feel free to play with it by adding more features & examples.
-# Interesting note: I've written this so the 2nd and 5th examples
-# have the same features, but different labels - so we can see how the
-# tree handles this case.
-training_data = [
-    ['Green', 3, 'Apple'],
-    ['Yellow', 3, 'Apple'],
-    ['Red', 1, 'Grape'],
-    ['Red', 1, 'Grape'],
-    ['Yellow', 3, 'Lemon'],
-]
+class DecisionTree:
+    """A binary decision tree to predict categorical classes"""
+    def __init__(self):
+        self.tree = None
+        self.header = None
 
-# Column labels.
-# These are used only to print the tree.
-header = ["color", "diameter", "label"]
+    def fit(self, data):
+        """ fit data to model"""
+        # get best criterion lead to greatest infomation gain"""
+        gain, criterion = find_best_split(data)
+        # Base case: reach leaf, no further info gain
+        if gain == 0:
+            return Leaf(data)
+        # split the data at the criterion
+        true_data, false_data = split(data, criterion)
+        # Recursively build the branch.
+        true_branch = self.fit(true_data)
+        false_branch = self.fit(false_data)
+        # Return a criterion node, which contains the best split strategy and rest of the tree.
+        tree_node = DecisionNode(criterion, true_branch, false_branch)
+        self.tree = tree_node
+        return self.tree
 
-
-def unique_vals(data, col):
-    """Find the unique values for a column in a dataset."""
-    return set([row[col] for row in data])
-
-def class_counts(data):
-    """Counts the number of each type of example in a dataset."""
-    counts = {}  # a dictionary of label -> count.
-    for row in data:
-        # in our dataset format, the label is always the last column
-        label = row[-1]
-        if label not in counts:
-            counts[label] = 0
-        counts[label] += 1
-    return counts
-
-#######
-# Demo:
-# class_counts(training_data)
-#######
-
-
-def is_numeric(value):
-    """Test if a value is numeric."""
-    return isinstance(value, int) or isinstance(value, float)
-
-#######
-# Demo:
-# is_numeric(7)
-# is_numeric("Red")
-#######
-
-
-class Question:
-    """A Question is used to partition a dataset.
-
-    This class just records a 'column number' (e.g., 0 for Color) and a
-    'column value' (e.g., Green). The 'match' method is used to compare
-    the feature value in an example to the feature value stored in the
-    question. See the demo below.
-    """
-
-    def __init__(self, column, value):
-        self.column = column
-        self.value = value
-
-    def match(self, example):
-        # Compare the feature value in an example to the
-        # feature value in this question.
-        val = example[self.column]
-        if is_numeric(val):
-            return val >= self.value
+    def predict(self, node, observation):
+        """Classify the data to either branch."""
+        # Base case: reached a leaf
+        if isinstance(node, Leaf):
+            return node.predictions
+        # recursive case:
+        if node.criterion.meet(observation):
+            return self.predict(node.true_branch, observation)
         else:
-            return val == self.value
+            return self.predict(node.false_branch, observation)
 
-    def __repr__(self):
-        # This is just a helper method to print
-        # the question in a readable format.
-        condition = "=="
-        if is_numeric(self.value):
-            condition = ">="
-        return "Is %s %s %s?" % (
-            header[self.column], condition, str(self.value))
+    def print_node(self, node, indent= " "):
+        """print the tree in a readable format"""
+        # Base case: we've reached a leaf
+        if isinstance(node, Leaf):
+            print(indent + "Predict", node.predictions)
+            return
+        # Recursively print the rest of the tree
+        # Print the criterion at node
+        print(indent + str(node.criterion))
+        # Print the true branch
+        print(indent + '-> True:')
+        self.print_node(node.true_branch, indent+ " ")
+        # Print the false branch
+        print(indent + '-> False:')
+        self.print_node(node.false_branch,  indent+ " ")
 
-#######
-# Demo:
-# Let's write a question for a numeric attribute
-# Question(1, 3)
-# How about one for a categorical attribute
-# q = Question(0, 'Green')
-# Let's pick an example from the training set...
-# example = training_data[0]
-# ... and see if it matches the question
-# q.match(example)
-#######
-
-
-def partition(data, question):
-    """Partitions a dataset.
-
-    For each row in the dataset, check if it matches the question. If
-    so, add it to 'true data', otherwise, add it to 'false data'.
-    """
-    true_data, false_data = [], []
-    for row in data:
-        if question.match(row):
-            true_data.append(row)
-        else:
-            false_data.append(row)
-    return true_data, false_data
-
-
-#######
-# Demo:
-# Let's partition the training data based on whether data are Red.
-# true_data, false_data = partition(training_data, Question(0, 'Red'))
-# This will contain all the 'Red' data.
-# true_data
-# This will contain everything else.
-# false_data
-#######
-
-def gini(data):
-    """Calculate the Gini Impurity for a list of data.
-
-    There are a few different ways to do this, I thought this one was
-    the most concise. See:
-    https://en.wikipedia.org/wiki/Decision_tree_learning#Gini_impurity
-    """
-    counts = class_counts(data)
-    impurity = 1
-    for lbl in counts:
-        prob_of_lbl = counts[lbl] / float(len(data))
-        impurity -= prob_of_lbl**2
-    return impurity
-
-
-#######
-# Demo:
-# Let's look at some example to understand how Gini Impurity works.
-#
-# First, we'll look at a dataset with no mixing.
-# no_mixing = [['Apple'],
-#              ['Apple']]
-# this will return 0
-# gini(no_mixing)
-#
-# Now, we'll look at dataset with a 50:50 apples:oranges ratio
-# some_mixing = [['Apple'],
-#               ['Orange']]
-# this will return 0.5 - meaning, there's a 50% chance of misclassifying
-# a random example we draw from the dataset.
-# gini(some_mixing)
-#
-# Now, we'll look at a dataset with many different labels
-# lots_of_mixing = [['Apple'],
-#                  ['Orange'],
-#                  ['Grape'],
-#                  ['Grapefruit'],
-#                  ['Blueberry']]
-# This will return 0.8
-# gini(lots_of_mixing)
-#######
-
-def info_gain(left, right, current_uncertainty):
-    """Information Gain.
-
-    The uncertainty of the starting node, minus the weighted impurity of
-    two child nodes.
-    """
-    p = float(len(left)) / (len(left) + len(right))
-    return current_uncertainty - p * gini(left) - (1 - p) * gini(right)
-
-#######
-# Demo:
-# Calculate the uncertainy of our training data.
-# current_uncertainty = gini(training_data)
-#
-# How much information do we gain by partioning on 'Green'?
-# true_data, false_data = partition(training_data, Question(0, 'Green'))
-# info_gain(true_data, false_data, current_uncertainty)
-#
-# What about if we partioned on 'Red' instead?
-# true_data, false_data = partition(training_data, Question(0,'Red'))
-# info_gain(true_data, false_data, current_uncertainty)
-#
-# It looks like we learned more using 'Red' (0.37), than 'Green' (0.14).
-# Why? Look at the different splits that result, and see which one
-# looks more 'unmixed' to you.
-# true_data, false_data = partition(training_data, Question(0,'Red'))
-#
-# Here, the true_data contain only 'Grapes'.
-# true_data
-#
-# And the false data contain two types of fruit. Not too bad.
-# false_data
-#
-# On the other hand, partitioning by Green doesn't help so much.
-# true_data, false_data = partition(training_data, Question(0,'Green'))
-#
-# We've isolated one apple in the true data.
-# true_data
-#
-# But, the false-data are badly mixed up.
-# false_data
-#######
-
-
-def find_best_split(data):
-    """Find the best question to ask by iterating over every feature / value
-    and calculating the information gain."""
-    best_gain = 0  # keep track of the best information gain
-    best_question = None  # keep train of the feature / value that produced it
-    current_uncertainty = gini(data)
-    n_features = len(data[0]) - 1  # number of columns
-
-    for col in range(n_features):  # for each feature
-
-        values = set([row[col] for row in data])  # unique values in the column
-
-        for val in values:  # for each value
-
-            question = Question(col, val)
-
-            # try splitting the dataset
-            true_data, false_data = partition(data, question)
-
-            # Skip this split if it doesn't divide the
-            # dataset.
-            if len(true_data) == 0 or len(false_data) == 0:
-                continue
-
-            # Calculate the information gain from this split
-            gain = info_gain(true_data, false_data, current_uncertainty)
-
-            # You actually can use '>' instead of '>=' here
-            # but I wanted the tree to look a certain way for our
-            # toy dataset.
-            if gain >= best_gain:
-                best_gain, best_question = gain, question
-
-    return best_gain, best_question
-
-#######
-# Demo:
-# Find the best question to ask first for our toy dataset.
-# best_gain, best_question = find_best_split(training_data)
-# FYI: is color == Red is just as good. See the note in the code above
-# where I used '>='.
-#######
-
-class Leaf:
-    """A Leaf node classifies data.
-
-    This holds a dictionary of class (e.g., "Apple") -> number of times
-    it appears in the data from the training data that reach this leaf.
-    """
-
-    def __init__(self, data):
-        self.predictions = class_counts(data)
-
-
-class Decision_Node:
-    """A Decision Node asks a question.
-
-    This holds a reference to the question, and to the two child nodes.
-    """
-
-    def __init__(self,
-                 question,
-                 true_branch,
-                 false_branch):
-        self.question = question
-        self.true_branch = true_branch
-        self.false_branch = false_branch
-
-
-def build_tree(data):
-    """Builds the tree.
-
-    Rules of recursion: 1) Believe that it works. 2) Start by checking
-    for the base case (no further information gain). 3) Prepare for
-    giant stack traces.
-    """
-
-    # Try partitioing the dataset on each of the unique attribute,
-    # calculate the information gain,
-    # and return the question that produces the highest gain.
-    gain, question = find_best_split(data)
-
-    # Base case: no further info gain
-    # Since we can ask no further questions,
-    # we'll return a leaf.
-    if gain == 0:
-        return Leaf(data)
-
-    # If we reach here, we have found a useful feature / value
-    # to partition on.
-    true_data, false_data = partition(data, question)
-
-    # Recursively build the true branch.
-    true_branch = build_tree(true_data)
-
-    # Recursively build the false branch.
-    false_branch = build_tree(false_data)
-
-    # Return a Question node.
-    # This records the best feature / value to ask at this point,
-    # as well as the branches to follow
-    # dependingo on the answer.
-    return Decision_Node(question, true_branch, false_branch)
-
-
-def print_tree(node, spacing=""):
-    """World's most elegant tree printing function."""
-
-    # Base case: we've reached a leaf
-    if isinstance(node, Leaf):
-        print (spacing + "Predict", node.predictions)
-        return
-
-    # Print the question at this node
-    print (spacing + str(node.question))
-
-    # Call this function recursively on the true branch
-    print (spacing + '--> True:')
-    print_tree(node.true_branch, spacing + "  ")
-
-    # Call this function recursively on the false branch
-    print (spacing + '--> False:')
-    print_tree(node.false_branch, spacing + "  ")
-
-
-def classify(row, node):
-    """See the 'rules of recursion' above."""
-
-    # Base case: we've reached a leaf
-    if isinstance(node, Leaf):
-        return node.predictions
-
-    # Decide whether to follow the true-branch or the false-branch.
-    # Compare the feature / value stored in the node,
-    # to the example we're considering.
-    if node.question.match(row):
-        return classify(row, node.true_branch)
-    else:
-        return classify(row, node.false_branch)
-
-
-#######
-# Demo:
-# The tree predicts the 1st row of our
-# training data is an apple with confidence 1.
-# my_tree = build_tree(training_data)
-# classify(training_data[0], my_tree)
-#######
-
-def print_leaf(counts):
-    """A nicer way to print the predictions at a leaf."""
-    total = sum(counts.values()) * 1.0
-    probs = {}
-    for lbl in counts.keys():
-        probs[lbl] = str(int(counts[lbl] / total * 100)) + "%"
-    return probs
-
-
-#######
-# Demo:
-# Printing that a bit nicer
-# print_leaf(classify(training_data[0], my_tree))
-#######
-
-#######
-# Demo:
-# On the second example, the confidence is lower
-# print_leaf(classify(training_data[1], my_tree))
-#######
-
+    def print_leaf(self):
+        """A nicer way to print the predictions at a leaf."""
+        counts = class_counts()
+        total = sum(counts.values()) * 1.0
+        probs = {}
+        for lbl in counts.keys():
+            probs[lbl] = str(int(counts[lbl] / total * 100)) + "%"
+        return probs     
+    
+    def print_tree(self):
+        self.print_node(self.tree)
+ 
 if __name__ == '__main__':
-
-    my_tree = build_tree(training_data)
-
-    print_tree(my_tree)
-
+    training_data = [
+        ['Green', 'triagle', 2, 'Leaf'],
+        ['Blue', 'polygon', 10, 'Sky'],
+        ['Red', 'round', 8, 'Ballon'],
+        ['Red', 'polygon', 1, 'Flower'],
+        ['White', 'round', 1, 'Flower'],
+        ['Green', 'polygon', 10, 'Meadow']
+    ]
+    # Column labels.
+    header = ["color", "size", "label"]
+    
+    DT = DecisionTree()
+    DT.fit(training_data)
+    DT.print_tree()
     # Evaluate
     testing_data = [
-        ['Green', 3, 'Apple'],
-        ['Yellow', 4, 'Apple'],
-        ['Red', 2, 'Grape'],
-        ['Red', 1, 'Grape'],
-        ['Yellow', 3, 'Lemon'],
+        ['Green', 'triangle', 3, 'Leaf'],
+        ['Yellow', 'round', 1, 'Flower'],
+        ['Red', 'round', 2, 'Flower'],
+        ['Red', 'round', 9, 'Ballon'],
+        ['Green', 'polygon', 12, 'Meadow'],
     ]
-
-    for row in testing_data:
-        print ("Actual: %s. Predicted: %s" %
-               (row[-1], print_leaf(classify(row, my_tree))))
-
-# Next steps
-# - add support for missing (or unseen) attributes
-# - prune the tree to prevent overfitting
-# - add support for regression
+    for observation in testing_data:
+        predicted = DT.predict(DT.tree, observation)
+        print("Actual: %s, predicted: %s" % (observation[-1], predicted))
