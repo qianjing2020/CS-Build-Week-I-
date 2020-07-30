@@ -3,10 +3,10 @@ def gini(data):
     """
     counts = class_counts(data)
     impurity = 1
-    for lbl in counts:
+    for item in counts:
         # go over each label in counts
-        prob_of_lbl = counts[lbl] / float(len(data))
-        impurity -= prob_of_lbl**2
+        prob = counts[item] / float(len(data))
+        impurity -= prob**2
     return impurity
 
 def info_gain(left, right, current_uncertainty):
