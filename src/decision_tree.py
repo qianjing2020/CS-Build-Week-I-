@@ -1,38 +1,37 @@
 from utilities import Leaf, DecisionNode, split, find_best_split, class_counts
 
 class DecisionTree:
-    """A binary decision tree to predict categorical classes"""
+    """A binary decision tree gitto predict categorical classes"""
     def __init__(self):
         self.tree = None
-        self.header = None
-
-    def fit(self, data):
-        """ fit data to model"""
+        
+    def fit(self, features, data):
+        """ fit data to tree model using recursion"""
         # get best criterion lead to greatest infomation gain"""
-        gain, criterion = find_best_split(data)
-        # Base case: reach leaf, no further info gain
+        gain, criterion = find_best_split(features, data)
+        # Base case: no further info gain, data reach leaf nodes, 
         if gain == 0:
             return Leaf(data)
         # split the data at the criterion
-        true_data, false_data = split(data, criterion)
-        # Recursively build the branch.
-        true_branch = self.fit(true_data)
-        false_branch = self.fit(false_data)
-        # Return a criterion node, which contains the best split strategy and rest of the tree.
-        tree_node = DecisionNode(criterion, true_branch, false_branch)
-        self.tree = tree_node
-        return self.tree
+        left_data, right_data = split(data, criterion)
+        # Recursively build the branches
+        left_branch = self.fit(features, left_data)
+        right_branch = self.fit(features, right_data)
+        # Return a Decision Node, which contains the criterion and two child branches of the node
+        fitted_node = DecisionNode(criterion, left_branch, right_branch)    
+        self.tree = fitted_node    
+        return fitted_node
 
     def predict(self, node, observation):
-        """Classify the data to either branch."""
+        """Classify the data to either branch until become a leaf."""
         # Base case: reached a leaf
         if isinstance(node, Leaf):
             return node.predictions
         # recursive case:
         if node.criterion.meet(observation):
-            return self.predict(node.true_branch, observation)
+            return self.predict(node.right_branch, observation)
         else:
-            return self.predict(node.false_branch, observation)
+            return self.predict(node.left_branch, observation)
 
     def print_node(self, node, indent= " "):
         """print the tree in a readable format"""
@@ -43,13 +42,13 @@ class DecisionTree:
         # Recursively print the rest of the tree
         # Print the criterion at node
         print(indent + str(node.criterion))
-        # Print the true branch
-        print(indent + '-> True:')
-        self.print_node(node.true_branch, indent+ " ")
-        # Print the false branch
+        # Print the left branch
         print(indent + '-> False:')
-        self.print_node(node.false_branch,  indent+ " ")
-
+        self.print_node(node.left_branch,  indent+ " ")
+        # Print the right branch
+        print(indent + '-> True:')
+        self.print_node(node.right_branch, indent+ " ")
+        
     def print_leaf(self):
         """A nicer way to print the predictions at a leaf."""
         counts = class_counts()
@@ -72,10 +71,11 @@ if __name__ == '__main__':
         ['Green', 'polygon', 10, 'Meadow']
     ]
     # Column labels.
-    header = ["color", "size", "label"]
-    
+    header = ["color", "shape", "size", "label"]
+    features = header[:-1]
     dt = DecisionTree()
-    dt.fit(training_data)
+    dt.fit(features, training_data)
+
     dt.print_tree()
     # Evaluate
     testing_data = [
@@ -87,4 +87,4 @@ if __name__ == '__main__':
     ]
     for observation in testing_data:
         predicted = dt.predict(dt.tree, observation)
-        print("Actual: %s, predicted: %s" % (observation[-1], predicted))
+        print(f"Actual: {observation[-1]}, predicted: {predicted}")
