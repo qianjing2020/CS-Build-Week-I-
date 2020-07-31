@@ -74,9 +74,9 @@ if __name__ == '__main__':
     # Column labels.
     header = ["color", "size", "label"]
     
-    DT = DecisionTree()
-    DT.fit(training_data)
-    DT.print_tree()
+    dt = DecisionTree()
+    dt.fit(training_data)
+    dt.print_tree()
     # Evaluate
     testing_data = [
         ['Green', 'triangle', 3, 'Leaf'],
@@ -86,5 +86,5 @@ if __name__ == '__main__':
         ['Green', 'polygon', 12, 'Meadow'],
     ]
     for observation in testing_data:
-        predicted = DT.predict(DT.tree, observation)
+        predicted = dt.predict(dt.tree, observation)
         print("Actual: %s, predicted: %s" % (observation[-1], predicted))

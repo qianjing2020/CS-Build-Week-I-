@@ -10,8 +10,7 @@ def gini(data):
     return impurity
 
 def info_gain(left, right, current_uncertainty):
-    """Information Gain is measured as the uncertainty of the starting 
-    node, minus the weighted impurity of two child nodes.
+    """Information Gain is measured as the uncertainty of the starting node, minus the weighted impurity of two child nodes.
     """
     # weight for gini score of the left branch
     w = float(len(left)) / (len(left) + len(right))
@@ -88,7 +87,7 @@ class Leaf:
     from the training data that reach this leaf.
     """
     def __init__(self, data):
-        self.predictions = class_counts(data)
+        self.predictions = list(class_counts(data).keys())
 
 class DecisionNode:
     """At decision node stores the criterion for splitting
